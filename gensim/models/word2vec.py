@@ -520,6 +520,14 @@ class Word2Vec(utils.SaveLoad):
         sections.append(total)
         return sections
 
+    def log2_perplexity(self, sentences):
+        """
+
+        Return the perplexity of the model on a given corpus of
+        sentences. Words not in the vocabulary are ignored.
+
+        """
+
 
     def __str__(self):
         return "Word2Vec(vocab=%s, size=%s, alpha=%s)" % (len(self.index2word), self.layer1_size, self.alpha)
