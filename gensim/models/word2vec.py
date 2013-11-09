@@ -537,9 +537,7 @@ class Word2Vec(utils.SaveLoad):
 
     def log2_perplexity(self, sentences):
         """
-
-        Return the perplexity of the model on a given corpus of
-        sentences. Words not in the vocabulary are ignored.
+        Return the perplexity of the model on a given corpus of sentences. Words not in the vocabulary are ignored.
 
         """
 
