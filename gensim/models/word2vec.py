@@ -194,11 +194,14 @@ class Word2Vec(utils.SaveLoad):
 
             logger.info("built huffman tree with maximum node depth %i" % max_depth)
 
-    def build_vocab(self, sentences):
+    def build_vocab(self, sentences, min_count_autoadjust=False):
         """
         Build vocabulary from a sequence of sentences (can be a once-only generator stream).
         Each sentence must be a list of utf8 strings.
 
+        min_count_autoadjust will (if true) increase min_count by 1
+            and re-prune the vocabulary if the program runs out of
+            memory when creating the binary tree or the weights
         """
         logger.info("collecting all words and their counts")
         sentence_no, vocab = -1, {}
@@ -215,18 +218,45 @@ class Word2Vec(utils.SaveLoad):
         logger.info("collected %i word types from a corpus of %i words and %i sentences" %
             (len(vocab), total_words(), sentence_no + 1))
 
-        # assign a unique index to each word
-        self.vocab, self.index2word = {}, []
-        for word, v in vocab.iteritems():
-            if v.count >= self.min_count:
-                v.index = len(self.vocab)
-                self.index2word.append(word)
-                self.vocab[word] = v
-        logger.info("total %i word types after removing those with count<%s" % (len(self.vocab), self.min_count))
+        # Set up loop for autoadjusting min_count (if
+        # min_count_autoadjust is false, memory exceptions will be
+        # passed through). The loop will exit when the weights for the
+        # vocabulary are successfully allocated.
+        while True:
+            try:
+                # assign a unique index to each word
+                self.vocab, self.index2word = {}, []
+                for word, v in vocab.iteritems():
+                    if v.count >= self.min_count:
+                        v.index = len(self.vocab)
+                        self.index2word.append(word)
+                        self.vocab[word] = v
+                logger.info("total %i word types after removing "+
+                            "those with count<%s" %
+                            (len(self.vocab), self.min_count))
 
-        # add info about each word's Huffman encoding
-        self.create_binary_tree()
-        self.reset_weights()
+                # add info about each word's Huffman encoding
+                self.create_binary_tree()
+                self.reset_weights()
+
+                # break out of loop because we've successfully
+                # allocated the weights
+                break;
+            except MemoryError:
+                if min_count_autoadjust:
+                    # Make the vocabulary smaller by excluding some
+                    # words so that the weights can (hopefully) fit in
+                    # memory
+                    self.vocab, self.index2word = None, None
+                    self.syn0, self.syn1 = None, None
+
+                    self.min_count += 1
+                    logger.info(("Not enough memory for weights, "+
+                                "increasing min_count to %s") %
+                                self.min_count)
+                else:
+                    # If not autoadjusting, reraise the exception
+                    raise
 
 
     def train(self, sentences, total_words=None, word_count=0, chunksize=100):
