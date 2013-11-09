@@ -131,7 +131,7 @@ class Word2Vec(utils.SaveLoad):
     compatible with the original word2vec implementation via `save_word2vec_format()` and `load_word2vec_format()`.
 
     """
-    def __init__(self, sentences=None, size=100, alpha=0.025, window=5, min_count=5, seed=1, workers=1, min_alpha=0.0001):
+    def __init__(self, sentences=None, size=100, alpha=0.025, window=5, min_count=5, seed=1, workers=1, min_alpha=0.0001, min_count_autoadjust=False):
         """
         Initialize the model from an iterable of `sentences`. Each sentence is a
         list of words (utf8 strings) that will be used for training.
@@ -145,6 +145,7 @@ class Word2Vec(utils.SaveLoad):
         `alpha` is the initial learning rate (will linearly drop to zero as training progresses).
         `seed` = for the random number generator.
         `min_count` = ignore all words with total frequency lower than this.
+        `min_count_autoadjust` = if true keep increasing min_count until weights fit in memory (false by default)
         `workers` = use this many worker threads to train the model (=faster training with multicore machines)
 
         """
@@ -158,7 +159,8 @@ class Word2Vec(utils.SaveLoad):
         self.workers = workers
         self.min_alpha = min_alpha
         if sentences is not None:
-            self.build_vocab(sentences)
+            self.build_vocab(sentences, 
+                             min_count_autoadjust=min_count_autoadjust)
             self.train(sentences)
 
 
@@ -231,8 +233,8 @@ class Word2Vec(utils.SaveLoad):
                         v.index = len(self.vocab)
                         self.index2word.append(word)
                         self.vocab[word] = v
-                logger.info("total %i word types after removing "+
-                            "those with count<%s" %
+                logger.info(("total %i word types after removing "+
+                            "those with count<%s") %
                             (len(self.vocab), self.min_count))
 
                 # add info about each word's Huffman encoding
