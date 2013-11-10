@@ -102,8 +102,10 @@ class IncreasingNumberSentences(object):
         self.num_sentences = num_sentences
     def __iter__(self):
         """Iterate through the sentences"""
-        for length in range(self.num_sentences):
-            yield ' '.join(map(str, range(length)))
+        cur_sentence = []
+        for last_num in range(self.num_sentences):
+            cur_sentence.append(str(last_num))
+            yield cur_sentence
 
 class TestWord2VecModel(unittest.TestCase):
     def testPersistence(self):
@@ -159,14 +161,14 @@ class TestWord2VecModel(unittest.TestCase):
         gc.collect()
 
         # Now find out how many sentences are required for a memory error
-        num_sentences = 200
+        num_sentences = 1
         try:
             model = word2vec.Word2Vec(size=128*1024, min_count=1)            
             while True:
                 sys.stderr.write('Using %s sentences\n' % num_sentences)
                 sentences = IncreasingNumberSentences(num_sentences);
                 model.build_vocab(sentences, min_count_autoadjust=False)
-                num_sentences = num_sentences * 2
+                num_sentences += 1
         except MemoryError:
             pass
 
