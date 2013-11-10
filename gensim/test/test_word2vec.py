@@ -140,55 +140,44 @@ class TestWord2VecModel(unittest.TestCase):
 
     def testVocabAutoadjust(self):
         "Test that the autoadjustment happens when memory is filled"
-        
-        # First, find how much memory is available
-        gc.collect()
-        alloc_fails = MemoryAllocationFailsList()
-        # Find the first power of 2 for which allocation fails
-        mem_upper_bound = 1
-        while not alloc_fails[mem_upper_bound]:
-            mem_upper_bound *= 2
-        # Now use the known bounds to find out exactly how much memory
-        # is available
-        num_avail_entries = bisect.bisect(
-            alloc_fails, 0.5, mem_upper_bound/2, mem_upper_bound)
-        
-        # Now allocate all but 64000 entries of it
-        gc.collect()
-        fill_memory = [0]*(num_avail_entries-64000)
 
-        # Find the first power of 2 for which allocation fails
-        mem_upper_bound = 1
-        while not alloc_fails[mem_upper_bound]:
-            mem_upper_bound *= 2
-        # Now use the known bounds to find out exactly how much memory
-        # is available
-        num_avail_entries = bisect.bisect(
-            alloc_fails, 0.5, mem_upper_bound/2, mem_upper_bound)
-
-        sys.stderr.write('Number of avail entries after the filling: '+
-                         str(num_avail_entries)+'\n');
-
-        # Now allocate as much as possible of the rest of it
+        # Keep allocating larger and larger chunks of memory until its
+        # almost all gone
+        filled={}
+        chunk_to_try = 16*1024*1024
+        cur_index=1
+        while chunk_to_try > 8*1024*1024:
+            sys.stderr.write('Chunk size: ' + str(chunk_to_try) + '\n')
+            try:
+                gc.collect()
+                filled[str(cur_index)]=[0]*chunk_to_try
+                chunk_to_try *= 2
+                cur_index += 1
+            except MemoryError:
+                chunk_to_try /= 2
+            
         gc.collect()
-        fill_memory2 = [0]*(num_avail_entries-64000)
 
         # Now find out how many sentences are required for a memory error
         num_sentences = 200
         try:
+            model = word2vec.Word2Vec(size=128*1024, min_count=1)            
             while True:
+                sys.stderr.write('Using %s sentences\n' % num_sentences)
                 sentences = IncreasingNumberSentences(num_sentences);
-                model = word2vec.Word2Vec(sentences, size=4, min_count=1, 
-                                          min_count_autoadjust=False)
+                model.build_vocab(sentences, min_count_autoadjust=False)
                 num_sentences = num_sentences * 2
         except MemoryError:
             pass
 
         # Train with that number of sentences using autoadjust - the
         # adjust shoud change min_count
+        sys.stderr.write('Final: using %s sentences\n' % num_sentences)
+        model = word2vec.Word2Vec(size=128*1024, min_count=1)
         sentences = IncreasingNumberSentences(num_sentences);
-        model = word2vec.Word2Vec(sentences, size=4, min_count=1, 
-                                  min_count_autoadjust=True)
+        model.build_vocab(sentences, min_count_autoadjust=True)
+
+        sys.stderr.write('At end used min_count=%s\n' % model.min_count)
         self.assertTrue(model.min_count > 1, 'No entries were eliminated');
 
         # Ensure our memory-filling array doesn't get optimized away
