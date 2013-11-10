@@ -227,15 +227,7 @@ class Word2Vec(utils.SaveLoad):
         while True:
             try:
                 # assign a unique index to each word
-                self.vocab, self.index2word = {}, []
-                for word, v in vocab.iteritems():
-                    if v.count >= self.min_count:
-                        v.index = len(self.vocab)
-                        self.index2word.append(word)
-                        self.vocab[word] = v
-                logger.info(("total %i word types after removing "+
-                            "those with count<%s") %
-                            (len(self.vocab), self.min_count))
+                self.create_unique_index( vocab )
 
                 # add info about each word's Huffman encoding
                 self.create_binary_tree()
@@ -259,6 +251,27 @@ class Word2Vec(utils.SaveLoad):
                 else:
                     # If not autoadjusting, reraise the exception
                     raise
+
+    def create_unique_index( self, vocab ):
+        """Use `vocab` to create the model's vocabulary and assign a unique index to each word.
+
+        Builds self.vocab and self.index2word
+
+        `vocab` is expected to be a dictionary whose keys are the
+            words in the vocabulary and whose values have a count
+            attribute giving the number of occurrences of the word in
+            the source corpus. In other words, vocab['my_word'].count
+            is the number of times 'my_word' appeared in the corpus.
+        """
+        self.vocab, self.index2word = {}, []
+        for word, v in vocab.iteritems():
+            if v.count >= self.min_count:
+                v.index = len(self.vocab)
+                self.index2word.append(word)
+                self.vocab[word] = v
+        logger.info(("total %i word types after removing those "+
+                     "with count<%s") %
+                    (len(self.vocab), self.min_count))
 
 
     def train(self, sentences, total_words=None, word_count=0, chunksize=100):
