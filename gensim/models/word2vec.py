@@ -169,6 +169,8 @@ class Word2Vec(utils.SaveLoad):
         Create a binary Huffman tree using stored vocabulary word counts. Frequent words
         will have shorter binary codes. Called internally from `build_vocab()`.
 
+
+        Requires an initialized vocabulary (created by create_indexed_vocab)
         """
         logger.info("constructing a huffman tree from %i words" % len(self.vocab))
 
@@ -227,7 +229,7 @@ class Word2Vec(utils.SaveLoad):
         while True:
             try:
                 # assign a unique index to each word
-                self.create_unique_index( vocab )
+                self.create_indexed_vocab( vocab )
 
                 # add info about each word's Huffman encoding
                 self.create_binary_tree()
@@ -252,8 +254,8 @@ class Word2Vec(utils.SaveLoad):
                     # If not autoadjusting, reraise the exception
                     raise
 
-    def create_unique_index( self, vocab ):
-        """Use `vocab` to create the model's vocabulary and assign a unique index to each word.
+    def create_indexed_vocab( self, vocab ):
+        """Use `vocab` to create the model's vocabulary and assign a unique index to each word. Called internally from `build_vocab()`.
 
         Builds self.vocab and self.index2word
 
