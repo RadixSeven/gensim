@@ -15,10 +15,6 @@ import os
 import tempfile
 import itertools
 import bz2
-import bisect
-
-import sys
-import gc
 
 import numpy
 
@@ -53,60 +49,6 @@ def testfile():
     return os.path.join(tempfile.gettempdir(), 'gensim_word2vec.tst')
 
 
-class MemoryAllocationFailsList(object):
-    """ A pseudo list which has members indicating if a numpy array of that many floats could be allocated 
-
-    For example: 
-
-    if `maf = MemoryAllocationFails()`
-
-    `maf[1000]` would attempt to allocate an array of 1000 floats and
-    return 1 if it failed and 0 if it succeeded.
-
-    This is useful to allow binary search for memory size. For this
-    use, it is important that return value for successful allocations
-    is lower than that for unsuccessful allocations.
-    """
-    def __init__(self):
-        pass
-
-    def __getitem__(self, key):
-        sys.stderr.write('Try %s entries: ' % key)
-        try:
-            gc.collect()
-            [0]*key
-            sys.stderr.write('ok\n')
-            return 0
-        except MemoryError:
-            sys.stderr.write('FAILED\n')
-            return 1
-
-class IncreasingNumberSentences(object):
-    """Each sentence is an increasing list of numbers.
-
-    The first 4 sentences are:
-    0
-    0 1
-    0 1 2
-    0 1 2 3
-
-    You can specify the number of sentences in the collection in the
-    constructor.
-
-    In the resulting vocabulary 0 will appear `num_sentences` times, 1
-    will appear `num_sentences-1` times and `i` will appear
-    `num_sentences-i` times.
-    """
-    def __init__(self, num_sentences):
-        """Create a set of `num_sentences` sentences """
-        self.num_sentences = num_sentences
-    def __iter__(self):
-        """Iterate through the sentences"""
-        cur_sentence = []
-        for last_num in range(self.num_sentences):
-            cur_sentence.append(str(last_num))
-            yield cur_sentence
-
 class TestWord2VecModel(unittest.TestCase):
     def testPersistence(self):
         """Test storing/loading the entire model."""
@@ -140,50 +82,7 @@ class TestWord2VecModel(unittest.TestCase):
         # input not empty, but rather completely filtered out
         self.assertRaises(RuntimeError, word2vec.Word2Vec, corpus, min_count=total_words+1)
 
-    def testVocabAutoadjust(self):
-        "Test that the autoadjustment happens when memory is filled"
 
-        # Keep allocating larger and larger chunks of memory until its
-        # almost all gone
-        filled={}
-        chunk_to_try = 16*1024*1024
-        cur_index=1
-        while chunk_to_try > 8*1024*1024:
-            sys.stderr.write('Chunk size: ' + str(chunk_to_try) + '\n')
-            try:
-                gc.collect()
-                filled[str(cur_index)]=[0]*chunk_to_try
-                chunk_to_try *= 2
-                cur_index += 1
-            except MemoryError:
-                chunk_to_try /= 2
-            
-        gc.collect()
-
-        # Now find out how many sentences are required for a memory error
-        num_sentences = 1
-        try:
-            model = word2vec.Word2Vec(size=128*1024, min_count=1)            
-            while True:
-                sys.stderr.write('Using %s sentences\n' % num_sentences)
-                sentences = IncreasingNumberSentences(num_sentences);
-                model.build_vocab(sentences, min_count_autoadjust=False)
-                num_sentences += 1
-        except MemoryError:
-            pass
-
-        # Train with that number of sentences using autoadjust - the
-        # adjust shoud change min_count
-        sys.stderr.write('Final: using %s sentences\n' % num_sentences)
-        model = word2vec.Word2Vec(size=128*1024, min_count=1)
-        sentences = IncreasingNumberSentences(num_sentences);
-        model.build_vocab(sentences, min_count_autoadjust=True)
-
-        sys.stderr.write('At end used min_count=%s\n' % model.min_count)
-        self.assertTrue(model.min_count > 1, 'No entries were eliminated');
-
-        # Ensure our memory-filling array doesn't get optimized away
-        fill_memory[1] = 1;
     def testTraining(self):
         """Test word2vec training."""
         # to test training, make the corpus larger by repeating its sentences over and over
