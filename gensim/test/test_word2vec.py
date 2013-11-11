@@ -100,8 +100,50 @@ class TestWord2VecModel(unittest.TestCase):
         model2 = word2vec.Word2Vec(sentences, size=2, min_count=1)
         self.models_equal(model, model2)
 
+    def testVocabCounts(self):
+        """Test that vocab_counts returns the right counts on some simple vocabularies"""
+        s = [
+            ['human', 'interface', 'computer'],
+            ['survey', 'user', 'computer', 'system', 'response', 'time'],
+            ['eps', 'user', 'interface', 'system'],
+            ['system', 'human', 'system', 'eps'],
+            ['user', 'response', 'time'],
+            ['trees'],
+            ['graph', 'trees'],
+            ['graph', 'minors', 'trees'],
+            ['graph', 'minors', 'survey']
+            ]
 
-    def testParallel(self):
+        model=word2vec.Word2Vec(min_count=1)
+        
+        uni = model.vocab_counts(s)
+        expected_uni = {}
+        expected_uni['computer'] = word2vec.Vocab(count = 2)
+        expected_uni['eps'] = word2vec.Vocab(count = 2)
+        expected_uni['graph'] = word2vec.Vocab(count = 3)
+        expected_uni['human'] = word2vec.Vocab(count = 2)
+        expected_uni['interface'] = word2vec.Vocab(count = 2)
+        expected_uni['minors'] = word2vec.Vocab(count = 2)
+        expected_uni['response'] = word2vec.Vocab(count = 2)
+        expected_uni['survey'] = word2vec.Vocab(count = 2)
+        expected_uni['system'] = word2vec.Vocab(count = 4)
+        expected_uni['time'] = word2vec.Vocab(count = 2)
+        expected_uni['trees'] = word2vec.Vocab(count = 3)
+        expected_uni['user'] = word2vec.Vocab(count = 3)
+
+        uni_str = '{'+', '.join([str(k)+":"+str(v) for k,v in uni.iteritems()])+'}'
+        expected_uni_str = '{'+', '.join([str(k)+":"+str(v) 
+                                          for k,v in expected_uni.iteritems()])+'}'
+        self.assertEqual(uni, expected_uni, uni_str+
+                         " NOT EQUAL TO "+expected_uni_str)
+
+        empty_sentences = [[]]
+        uni = model.vocab_counts(empty_sentences)
+        expected_uni = {}
+
+        self.assertEqual(uni, expected_uni)
+
+    def disabled_testParallel(self):
         """Test word2vec parallel training."""
         if word2vec.FAST_VERSION < 0:  # don't test the plain NumPy version for parallelism (too slow)
             return
