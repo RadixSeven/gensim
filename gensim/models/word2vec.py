@@ -131,7 +131,7 @@ class Word2Vec(utils.SaveLoad):
     compatible with the original word2vec implementation via `save_word2vec_format()` and `load_word2vec_format()`.
 
     """
-    def __init__(self, sentences=None, size=100, alpha=0.025, window=5, min_count=5, seed=1, workers=1, min_alpha=0.0001, min_count_autoadjust=False):
+    def __init__(self, sentences=None, size=100, alpha=0.025, window=5, min_count=5, seed=1, workers=1, min_alpha=0.0001, max_words=None):
         """
         Initialize the model from an iterable of `sentences`. Each sentence is a
         list of words (utf8 strings) that will be used for training.
@@ -145,7 +145,7 @@ class Word2Vec(utils.SaveLoad):
         `alpha` is the initial learning rate (will linearly drop to zero as training progresses).
         `seed` = for the random number generator.
         `min_count` = ignore all words with total frequency lower than this.
-        `min_count_autoadjust` = if true keep increasing min_count until weights fit in memory (false by default)
+        `max_words` = if not none, controls the maximum number of words to use in the model. If there are more than `max_words` words in the vocabulary, min_count will be adjusted upwards until at most `max_words` words are used
         `workers` = use this many worker threads to train the model (=faster training with multicore machines)
 
         """
@@ -158,9 +158,9 @@ class Word2Vec(utils.SaveLoad):
         self.min_count = min_count
         self.workers = workers
         self.min_alpha = min_alpha
+        self.max_words = max_words
         if sentences is not None:
-            self.build_vocab(sentences, 
-                             min_count_autoadjust=min_count_autoadjust)
+            self.build_vocab(vocab_counts(sentences))
             self.train(sentences)
 
 
@@ -198,14 +198,16 @@ class Word2Vec(utils.SaveLoad):
 
             logger.info("built huffman tree with maximum node depth %i" % max_depth)
 
-    def build_vocab(self, sentences, min_count_autoadjust=False):
-        """
-        Build vocabulary from a sequence of sentences (can be a once-only generator stream).
-        Each sentence must be a list of utf8 strings.
+    def vocab_counts(self, sentences):
+        """Return a dictionary giving counts of all the tokens in sentences
 
-        min_count_autoadjust will (if true) increase min_count by 1
-            and re-prune the vocabulary if the program runs out of
-            memory when creating the binary tree or the weights
+        `sentences` a sequence of sentences (can be a once-only
+            generator stream).  Each sentence must be a list of utf8
+            strings.
+
+        Returns: a dictionary `vocab`
+            If a string appeared in a sentence, then it is a key in `vocab`
+            `vocab['key'].count` is the number of times `'key'` appeared when iterating the sentences
         """
         logger.info("collecting all words and their counts")
         sentence_no, vocab = -1, {}
@@ -221,38 +223,36 @@ class Word2Vec(utils.SaveLoad):
                     vocab[word] = Vocab(count=1)
         logger.info("collected %i word types from a corpus of %i words and %i sentences" %
             (len(vocab), total_words(), sentence_no + 1))
+        return vocab
 
-        # Set up loop for autoadjusting min_count (if
-        # min_count_autoadjust is false, memory exceptions will be
-        # passed through). The loop will exit when the weights for the
-        # vocabulary are successfully allocated.
+    def build_vocab(self, unigram_counts):
+        """Build vocabulary from a list of unigrams with their frequencies
+
+        `unigram_counts` is a dictionary like that returned from vocab_counts
+
+        Automatically adjusts the generated vocabulary to comply with `self.min_count` and `self.max_words`
+        """
+
+        total_words = lambda: sum(w.count for w in self.vocab.itervalues())
         while True:
-            try:
-                # assign a unique index to each word
-                self.create_indexed_vocab( vocab )
+            # assign a unique index to each word and eliminate infrequent words
+            self.create_indexed_vocab( unigram_counts )
+            if self.max_words != None and self.max_words < total_words():
+                logger.info("%s words with min_count=%s is more than %s. Increasing min_count." %
+                            total_words(), self.min_count, self.max_words)
+                # Increase min_count
+                ++self.min_count
+                # We won't need to eliminate the lower-count words
+                # again, so use the purged dictionary on the next pass
+                unigram_counts = self.vocab 
+            else:
+                break
 
-                # add info about each word's Huffman encoding
-                self.create_binary_tree()
-                self.reset_weights()
+        # add info about each word's Huffman encoding
+        self.create_binary_tree()
+        # create the weights
+        self.reset_weights()
 
-                # break out of loop because we've successfully
-                # allocated the weights
-                break;
-            except MemoryError:
-                if min_count_autoadjust:
-                    # Make the vocabulary smaller by excluding some
-                    # words so that the weights can (hopefully) fit in
-                    # memory
-                    self.vocab, self.index2word = None, None
-                    self.syn0, self.syn1 = None, None
-
-                    self.min_count += 1
-                    logger.info(("Not enough memory for weights, "+
-                                "increasing min_count to %s") %
-                                self.min_count)
-                else:
-                    # If not autoadjusting, reraise the exception
-                    raise
 
     def create_indexed_vocab( self, vocab ):
         """Use `vocab` to create the model's vocabulary and assign a unique index to each word. Called internally from `build_vocab()`.
