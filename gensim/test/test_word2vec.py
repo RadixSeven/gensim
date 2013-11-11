@@ -63,7 +63,7 @@ class TestWord2VecModel(unittest.TestCase):
 
         # try vocab building explicitly, using all words
         model = word2vec.Word2Vec(min_count=1)
-        model.build_vocab(corpus)
+        model.build_vocab(model.vocab_counts(corpus))
         self.assertTrue(len(model.vocab) == 6981)
         # with min_count=1, we're not throwing away anything, so make sure the word counts add up to be the entire corpus
         self.assertTrue(sum(v.count for v in model.vocab.itervalues()) == total_words)
@@ -72,7 +72,7 @@ class TestWord2VecModel(unittest.TestCase):
 
         # test building vocab with default params
         model = word2vec.Word2Vec()
-        model.build_vocab(corpus)
+        model.build_vocab(model.vocab_counts(corpus))
         self.assertTrue(len(model.vocab) == 1750)
         numpy.allclose(model.vocab['the'].code, [1, 1, 1, 0])
 
@@ -88,7 +88,7 @@ class TestWord2VecModel(unittest.TestCase):
         # to test training, make the corpus larger by repeating its sentences over and over
         # build vocabulary, don't train yet
         model = word2vec.Word2Vec(size=2, min_count=1)
-        model.build_vocab(sentences)
+        model.build_vocab(model.vocab_counts(sentences))
         self.assertTrue(model.syn0.shape == (len(model.vocab), 2))
         self.assertTrue(model.syn1.shape == (len(model.vocab), 2))
 
