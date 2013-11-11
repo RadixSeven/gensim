@@ -16,7 +16,7 @@ Initialize a model with e.g.::
 
 >>> model = Word2Vec(sentences, size=100, window=5, min_count=5, workers=4)
 
-Persist a model to disk with::
+ Persist a model to disk with::
 
 >>> model.save(fname)
 >>> model = Word2Vec.load(fname)  # you can continue training with the loaded model!
@@ -162,7 +162,7 @@ class Word2Vec(utils.SaveLoad):
         self.min_alpha = min_alpha
         self.max_words = max_words
         if sentences is not None:
-            self.build_vocab(vocab_counts(sentences))
+            self.build_vocab(self.vocab_counts(sentences))
             self.train(sentences)
 
 
