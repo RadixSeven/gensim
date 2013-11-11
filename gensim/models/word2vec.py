@@ -122,6 +122,8 @@ class Vocab(object):
         vals = ['%s:%r' % (key, self.__dict__[key]) for key in sorted(self.__dict__) if not key.startswith('_')]
         return "<" + ', '.join(vals) + ">"
 
+    def __eq__(self, other): # used for testing
+        return self.__dict__ == other.__dict__
 
 class Word2Vec(utils.SaveLoad):
     """
@@ -207,6 +209,7 @@ class Word2Vec(utils.SaveLoad):
 
         Returns: a dictionary `vocab`
             If a string appeared in a sentence, then it is a key in `vocab`
+            Values in the dictionary are Vocab objects
             `vocab['key'].count` is the number of times `'key'` appeared when iterating the sentences
         """
         logger.info("collecting all words and their counts")
