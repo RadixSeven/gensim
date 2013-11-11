@@ -143,7 +143,7 @@ class TestWord2VecModel(unittest.TestCase):
 
         self.assertEqual(uni, expected_uni)
 
-    def disabled_testParallel(self):
+    def testParallel(self):
         """Test word2vec parallel training."""
         if word2vec.FAST_VERSION < 0:  # don't test the plain NumPy version for parallelism (too slow)
             return
