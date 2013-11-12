@@ -114,6 +114,66 @@ class TestWord2VecModel(unittest.TestCase):
             ['graph', 'minors', 'survey']
             ]
 
+        # Test with min_count = 1
+
+        model=word2vec.Word2Vec(min_count=1)
+        
+        model.create_indexed_vocab( model.vocab_counts(s) )
+        expected_vocab = {}
+        expected_vocab['computer'] = word2vec.Vocab(count = 2, index = 5)
+        expected_vocab['eps'] = word2vec.Vocab(count = 2, index = 4)
+        expected_vocab['graph'] = word2vec.Vocab(count = 3, index = 1)
+        expected_vocab['human'] = word2vec.Vocab(count = 2, index = 8)
+        expected_vocab['interface'] = word2vec.Vocab(count = 2, index = 10)
+        expected_vocab['minors'] = word2vec.Vocab(count = 2, index = 0)
+        expected_vocab['response'] = word2vec.Vocab(count = 2, index = 11)
+        expected_vocab['survey'] = word2vec.Vocab(count = 2, index = 6)
+        expected_vocab['system'] = word2vec.Vocab(count = 4, index = 2)
+        expected_vocab['time'] = word2vec.Vocab(count = 2, index = 9)
+        expected_vocab['trees'] = word2vec.Vocab(count = 3, index = 3)
+        expected_vocab['user'] = word2vec.Vocab(count = 3, index = 7)
+        expected_index2word = [
+            'minors', 'graph', 'system', 'trees', 'eps', 'computer',
+            'survey', 'user', 'human', 'time', 'interface', 'response']
+
+
+        self.maxDiff = 4096
+        self.assertEqual(model.vocab, expected_vocab)
+        self.assertEqual(model.index2word, expected_index2word)
+
+        # Test with min_count = 3
+
+        model=word2vec.Word2Vec(min_count=3)
+        
+        model.create_indexed_vocab( model.vocab_counts(s) )
+        expected_vocab = {}
+        expected_vocab['graph'] = word2vec.Vocab(count = 3, index = 0)
+        expected_vocab['system'] = word2vec.Vocab(count = 4, index = 1)
+        expected_vocab['trees'] = word2vec.Vocab(count = 3, index = 2)
+        expected_vocab['user'] = word2vec.Vocab(count = 3, index = 3)
+        expected_index2word = [
+            'graph', 'system', 'trees', 'user']
+
+
+        self.maxDiff = 4096
+        self.assertEqual(model.vocab, expected_vocab)
+        self.assertEqual(model.index2word, expected_index2word)
+
+
+    def testCreateIndexedVocab(self):
+        """Test that create_indexed_vocab eliminates the correct vocab entries"""
+        s = [
+            ['human', 'interface', 'computer'],
+            ['survey', 'user', 'computer', 'system', 'response', 'time'],
+            ['eps', 'user', 'interface', 'system'],
+            ['system', 'human', 'system', 'eps'],
+            ['user', 'response', 'time'],
+            ['trees'],
+            ['graph', 'trees'],
+            ['graph', 'minors', 'trees'],
+            ['graph', 'minors', 'survey']
+            ]
+
         model=word2vec.Word2Vec(min_count=1)
         
         uni = model.vocab_counts(s)
