@@ -100,6 +100,142 @@ class TestWord2VecModel(unittest.TestCase):
         model2 = word2vec.Word2Vec(sentences, size=2, min_count=1)
         self.models_equal(model, model2)
 
+    def testMaxWords(self):
+        """Test that build_vocab enforces the max_words constraint"""
+        s = [
+            ['human', 'interface', 'computer'],
+            ['survey', 'user', 'computer', 'system', 'response', 'time'],
+            ['eps', 'user', 'interface', 'system'],
+            ['system', 'human', 'system', 'eps'],
+            ['user', 'response', 'time'],
+            ['trees'],
+            ['graph', 'trees'],
+            ['graph', 'minors', 'trees'],
+            ['graph', 'minors', 'survey']
+            ]
+
+        # Test with min_count = 1, max_words=None
+        from numpy import array, uint8, uint32
+
+        model=word2vec.Word2Vec(min_count=1)
+
+        model.build_vocab( model.vocab_counts(s) )
+        expected_vocab = {}
+        expected_vocab['computer'] = word2vec.Vocab(
+            count = 2, index = 5, code=array(dtype=uint8, object=[1, 1, 1, 0]),
+            point = array(dtype=uint32, object=[10,  9,  6,  1]))
+        expected_vocab['eps'] = word2vec.Vocab(
+            count = 2, index = 4, code=array(dtype=uint8, object=[1, 0, 0, 1]),
+            point = array(dtype=uint32, object=[10,  9,  7,  2]))
+        expected_vocab['graph'] = word2vec.Vocab(
+            count = 3, index = 1, code=array(dtype=uint8, object=[0, 0, 0]),
+            point = array(dtype=uint32, object=[10,  8,  4]))
+        expected_vocab['human'] = word2vec.Vocab(
+            count = 2, index = 8, code=array(dtype=uint8, object=[1, 0, 1, 1]),
+            point = array(dtype=uint32, object=[10,  9,  7,  3]))
+        expected_vocab['interface'] = word2vec.Vocab(
+            count = 2, index = 10, code=array(dtype=uint8, object=[1, 0, 0, 0]),
+            point = array(dtype=uint32, object=[10,  9,  7,  2]))
+        expected_vocab['minors'] = word2vec.Vocab(
+            count = 2, index = 0, code=array(dtype=uint8, object=[1, 1, 1, 1]),
+            point = array(dtype=uint32, object=[10,  9,  6,  1]))
+        expected_vocab['response'] = word2vec.Vocab(
+            count = 2, index = 11, code=array(dtype=uint8, object=[1, 1, 0, 1]),
+            point = array(dtype=uint32, object=[10,  9,  6,  0]))
+        expected_vocab['survey'] = word2vec.Vocab(
+            count = 2, index = 6, code=array(dtype=uint8, object=[1, 1, 0, 0]),
+            point = array(dtype=uint32, object=[10,  9,  6,  0]))
+        expected_vocab['system'] = word2vec.Vocab(
+            count = 4, index = 2, code=array(dtype=uint8, object=[0, 1, 1]),
+            point = array(dtype=uint32, object=[10,  8,  5]))
+        expected_vocab['time'] = word2vec.Vocab(
+            count = 2, index = 9, code=array(dtype=uint8, object=[1, 0, 1, 0]),
+            point = array(dtype=uint32, object=[10,  9,  7,  3]))
+        expected_vocab['trees'] = word2vec.Vocab(
+            count = 3, index = 3, code=array(dtype=uint8, object=[0, 1, 0]),
+            point = array(dtype=uint32, object=[10,  8,  5]))
+        expected_vocab['user'] = word2vec.Vocab(
+            count = 3, index = 7, code=array(dtype=uint8, object=[0, 0, 1]),
+            point = array(dtype=uint32, object=[10,  8,  4]))
+        expected_index2word = [
+            'minors', 'graph', 'system', 'trees', 'eps', 'computer',
+            'survey', 'user', 'human', 'time', 'interface', 'response']
+
+
+        self.maxDiff = 8192
+        self.assertEqual(model.vocab, expected_vocab)
+        self.assertEqual(model.index2word, expected_index2word)
+
+        # Test with min_count = 3, max_words = None
+
+        model=word2vec.Word2Vec(min_count=3)
+
+        model.build_vocab( model.vocab_counts(s) )
+        expected_vocab = {}
+        expected_vocab['graph'] = word2vec.Vocab(
+            count = 3, index = 0, code=array(dtype=uint8, object=[0, 1]),
+            point = array(dtype=uint32, object=[2, 0]))
+        expected_vocab['system'] = word2vec.Vocab(
+            count = 4, index = 1, code=array(dtype=uint8, object=[1, 1]),
+            point = array(dtype=uint32, object=[2, 1]))
+        expected_vocab['trees'] = word2vec.Vocab(
+            count = 3, index = 2, code=array(dtype=uint8, object=[0, 0]),
+            point = array(dtype=uint32, object=[2, 0]))
+        expected_vocab['user'] = word2vec.Vocab(
+            count = 3, index = 3, code=array(dtype=uint8, object=[1, 0]),
+            point = array(dtype=uint32, object=[2, 1]))
+        expected_index2word = [
+            'graph', 'system', 'trees', 'user']
+
+
+        self.maxDiff = 4096
+        self.assertEqual(model.vocab, expected_vocab)
+        self.assertEqual(model.index2word, expected_index2word)
+
+        # Test with min_count = 1, max_words = 5
+
+        model=word2vec.Word2Vec(min_count=1, max_words = 5)
+
+        model.build_vocab( model.vocab_counts(s) )
+        expected_vocab = {}
+        expected_vocab['graph'] = word2vec.Vocab(
+            count = 3, index = 0, code=array(dtype=uint8, object=[0, 1]),
+            point = array(dtype=uint32, object=[2, 0]))
+        expected_vocab['system'] = word2vec.Vocab(
+            count = 4, index = 1, code=array(dtype=uint8, object=[1, 1]),
+            point = array(dtype=uint32, object=[2, 1]))
+        expected_vocab['trees'] = word2vec.Vocab(
+            count = 3, index = 2, code=array(dtype=uint8, object=[0, 0]),
+            point = array(dtype=uint32, object=[2, 0]))
+        expected_vocab['user'] = word2vec.Vocab(
+            count = 3, index = 3, code=array(dtype=uint8, object=[1, 0]),
+            point = array(dtype=uint32, object=[2, 1]))
+        expected_index2word = [
+            'graph', 'system', 'trees', 'user']
+        expected_index2word = [
+            'graph', 'system', 'trees', 'user']
+
+
+        self.maxDiff = 4096
+        self.assertEqual(model.vocab, expected_vocab)
+        self.assertEqual(model.index2word, expected_index2word)
+
+        # Test with min_count = 1, max_words = 1
+
+        model=word2vec.Word2Vec(min_count=1, max_words = 1)
+
+        model.build_vocab( model.vocab_counts(s) )
+        expected_vocab = {}
+        expected_vocab['system'] = word2vec.Vocab(
+            count = 4, index = 0, code = [], point=[])
+        expected_index2word = [
+            'system']
+
+
+        self.maxDiff = 4096
+        self.assertEqual(model.vocab, expected_vocab)
+        self.assertEqual(model.index2word, expected_index2word)
+
     def testVocabCounts(self):
         """Test that vocab_counts returns the right counts on some simple vocabularies"""
         s = [
