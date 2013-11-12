@@ -167,7 +167,7 @@ class Word2Vec(utils.SaveLoad):
         `alpha` is the initial learning rate (will linearly drop to zero as training progresses).
         `seed` = for the random number generator.
         `min_count` = ignore all words with total frequency lower than this.
-        `max_words` = if not none, controls the maximum number of words to use in the model. If there are more than `max_words` words in the vocabulary, min_count will be adjusted upwards until at most `max_words` words are used
+        `max_words` = if not none, controls the maximum number of word types to use in the model. If there are more than `max_words` words in the vocabulary, min_count will be adjusted upwards until at most `max_words` words are used
         `workers` = use this many worker threads to train the model (=faster training with multicore machines)
 
         """
@@ -256,15 +256,14 @@ class Word2Vec(utils.SaveLoad):
         Automatically adjusts the generated vocabulary to comply with `self.min_count` and `self.max_words`
         """
 
-        total_words = lambda: sum(w.count for w in self.vocab.itervalues())
         while True:
             # assign a unique index to each word and eliminate infrequent words
             self.create_indexed_vocab( unigram_counts )
-            if self.max_words != None and self.max_words < total_words():
-                logger.info("%s words with min_count=%s is more than %s. Increasing min_count." %
-                            total_words(), self.min_count, self.max_words)
+            if self.max_words != None and self.max_words < len(self.vocab):
+                logger.info("%s word types with min_count=%s is more than %s. Increasing min_count." %
+                            (len(self.vocab), self.min_count, self.max_words))
                 # Increase min_count
-                ++self.min_count
+                self.min_count += 1
                 # We won't need to eliminate the lower-count words
                 # again, so use the purged dictionary on the next pass
                 unigram_counts = self.vocab 
