@@ -126,8 +126,24 @@ class Vocab(object):
         vals = ['%s=%r' % (repr(key), repr(self.__dict__[key])) for key in sorted(self.__dict__) if not key.startswith('_')]
         return "gensim.models.word2vec.Vocab(" + ', '.join(vals) + ")"
 
-    def __eq__(self, other): # used for testing
-        return self.__dict__ == other.__dict__
+    def __eq__(self, other): # used for testing - I can't just compare dictionaries because numpy requires you choose all or any when using == on arrays
+        self_keys = set(self.__dict__.keys())
+        other_keys = set(other.__dict__.keys())
+        if self_keys != other_keys:
+            return False
+
+        for key in self_keys:
+            try:
+                if not (self.__dict__[key] == other.__dict__[key]):
+                    return False
+            except ValueError:
+                # Deal with arrays
+                if (self.__dict__[key] != other.__dict__[key]).any():
+                    return False
+        return True
+
+    def __hash__(self): # needed since I redefine __eq__
+        return hash(self.__dict__)
 
 class Word2Vec(utils.SaveLoad):
     """
