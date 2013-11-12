@@ -122,6 +122,10 @@ class Vocab(object):
         vals = ['%s:%r' % (key, self.__dict__[key]) for key in sorted(self.__dict__) if not key.startswith('_')]
         return "<" + ', '.join(vals) + ">"
 
+    def __repr__(self):
+        vals = ['%s=%r' % (repr(key), repr(self.__dict__[key])) for key in sorted(self.__dict__) if not key.startswith('_')]
+        return "gensim.models.word2vec.Vocab(" + ', '.join(vals) + ")"
+
     def __eq__(self, other): # used for testing
         return self.__dict__ == other.__dict__
 
@@ -262,11 +266,15 @@ class Word2Vec(utils.SaveLoad):
 
         Builds self.vocab and self.index2word
 
+        NOTE: does not obey the self.max_words constraint - that is
+        enforced from build_vocab
+
         `vocab` is expected to be a dictionary whose keys are the
             words in the vocabulary and whose values have a count
             attribute giving the number of occurrences of the word in
             the source corpus. In other words, vocab['my_word'].count
             is the number of times 'my_word' appeared in the corpus.
+
         """
         self.vocab, self.index2word = {}, []
         for word, v in vocab.iteritems():
