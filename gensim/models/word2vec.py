@@ -537,8 +537,72 @@ class Word2Vec(utils.SaveLoad):
 
     def log2_perplexity(self, sentences):
         """
-        Return the perplexity of the model on a given corpus of sentences. Words not in the vocabulary are ignored.
+        Return the per-word perplexity of the model on a given corpus of sentences. Words not in the vocabulary are ignored.
 
+        *Note*: the following goes into excruciating detail because it
+        is possible that future users may find errors in the code or
+        in the way in which the code is derived. Since this
+        calculation is not published anywhere, it is included in the
+        documentation of the function for future users.
+
+        More precisely, this calculates the perplexity based on the
+        assumption that training effectively chooses ordered pairs of
+        words from the corpus by the following procedure:
+
+        1. Choose a random index in to the corpus i
+
+        2. Choose a random offset o from that index (by choosing a
+           number w from 1..window then choosing uniformly a number in
+           the set {-w..-1, 1..w})
+
+        3. Let j = i+o
+        
+        4. Select the pair word_i, word_j
+
+        Training then chooses vector pairs for the words so that
+        exp(word_i_v0 dot word_j_v1)/sum_k(exp(word_i_v0 dot
+        word_k_v1) estimates the conditional probability P(word_j |
+        word_i)
+
+        Perplexity of a model is 2^exponent where the exponent is the
+        cross-entropy between the model probabilities and the
+        empirical probabilities.
+
+        Under the training model, the corpus is regarded as a list of
+        word-pairs. Not all word-pairs are equally probable,
+        however. So, instead of the empirical probabilities being 1/N
+        they will be modified by the probability of a particular
+        offset pair in the document. For example, no word pairs cross
+        a sentence boundary or are more distant than window and
+        adjacent words are much more likely to be chosen than distant
+        words.
+
+        In order to calculate the perplexity, we must be able to
+        calculate the probability of a word, offset pair.
+
+        If we let O be the offset, R be the random subinterval length
+        within the window and W be the window width, we want to
+        calculate P(O | C). We know the following facts about the
+        distribution of O from the description of how the offsets are
+        generated (To keep from having to write "0 otherwise" all the
+        time, probabilities outside the specified domain of the
+        functions are assumed to be 0):
+
+        * P(O | R, C) = P(O | R) - once we've chosen a random
+          subinterval, we can choose the offset without having to know
+          the original window width
+
+        * P(O=o | R=r) = 1/2r if 1 <= |o| <= r
+
+        * P(R=r | C=c) = 1/c if 1 <= r <= c
+
+        From these facts, we can derive:
+
+        P(O=o | C=c) = sum_r P(O=o, R=r | C=c) (defn of marginalization)
+           = sum_r P(O=o | R=r, C=c)P(R=r | C=c) (chain rule)
+           = sum_r P(O=o | R=r) P(R=r | C=c) (indep assumption above)
+
+        
         """
 
 
