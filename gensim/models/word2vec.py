@@ -601,8 +601,20 @@ class Word2Vec(utils.SaveLoad):
         P(O=o | C=c) = sum_r P(O=o, R=r | C=c) (defn of marginalization)
            = sum_r P(O=o | R=r, C=c)P(R=r | C=c) (chain rule)
            = sum_r P(O=o | R=r) P(R=r | C=c) (indep assumption above)
+           = 1/c sum_r=1..c (1/(2r) if 1 <= |o| <= r) (removing zeros in sum)
+           = sum_r=1..c (1/(2rc) if 1 <= |o| <= r)
+           = sum_r=|o|..c (1/(2rc)) (Removing zeros in sum)
 
-        
+        So, we can calculate the exponent of the perplexity with:
+
+        sum i=1..N (1/N)(sum o=-c..-1,1..c sum r=|o|..c (1/(2rc) P(w_(i+o)|w_i))
+
+        There is a slight extra complexity added by out-of-vocabulary
+        words. If a word i is not in the vocabulary, we don't add it's
+        corresponding term and decrease N. If a word j is not in the
+        vocabulary, we renormalize the probabilities by dividing by
+        the sum over o without the particular offsets. This reweights
+        the individual probabilities P(O | C)  proportionally.
         """
 
 
