@@ -582,7 +582,7 @@ class Word2Vec(utils.SaveLoad):
         calculate the probability of a word, offset pair.
 
         If we let O be the offset, R be the random subinterval length
-        within the window and W be the window width, we want to
+        within the window and C be the window width, we want to
         calculate P(O | C). We know the following facts about the
         distribution of O from the description of how the offsets are
         generated (To keep from having to write "0 otherwise" all the
@@ -615,9 +615,93 @@ class Word2Vec(utils.SaveLoad):
         corresponding term and decrease N. If a word j is not in the
         vocabulary, we renormalize the probabilities by dividing by
         the sum over o without the particular offsets. This reweights
-        the individual probabilities P(O | C)  proportionally.
-        """
+        the individual probabilities P(O | C) proportionally.
 
+        This means it is better to remove the 1/N from inside the
+        summation (since N can only be known after removing the
+        out-of-vocabulary words). This would be better anyway because
+        it would save multiplications. This leaves:
+
+        (1/N) sum i=1..N(sum o=-c..-1,1..c sum r=|o|..c (1/(2rc) P(w_(i+o)|w_i))
+
+        Next, since P(w_(i+o) | w_i) does not depend on r, we can move
+        it out of the sum over r
+
+        (1/N) sum i=1..N(sum o=-c..-1,1..c (P(w_(i+o)|w_i) sum r=|o|..c (1/(2rc)))
+
+        Then, we can precalculate the sums over r for a each offset
+        and window width. Since c is constant, we only need to
+        calculate these for one value of c. Let S(o)=sum r=|o|..c
+        1/(2rc) = P(O=o | C=c)
+
+        (1/N) sum i=1..N(sum o=-c..-1,1..c S(o) P(w_(i+o)|w_i))
+
+        """
+        # Precalculate the probabilities of each offset. P_o[i] is the
+        # P(O=i-c | C=c). So P_o[0] is P(O=-c | C) and P_o[c] is P(O=0
+        # | C) (which will always be 0). I use numpy.float64 in the
+        # calculation to avoid divide by 0 errors.
+        P_o=[sum([numpy.float64(1.0)/(self.window*r)
+                  for r in range(abs(o), self.window+1)])
+             for o in range(-self.window, self.window+1)]
+        P_o[self.window]=0
+
+        perplexity_exponent = 0
+        N = 0
+        for sentence in sentences:
+            # Get the vectors for each word in the sentence
+            no_oov = [self.vocab.get(word, None) for word in sentence]
+            syn0 = [None if word is None else self.syn0[word.index]
+                    for word in no_oov]
+            syn1 = [None if word is None else self.syn1[word.point].T
+                    for word in no_oov]
+
+            # Go over each anchor word (the variable names are from
+            # train_sentence) l2aT is the current word's matrix
+            # transposed, ready for use in the dot product that
+            # calculates the probabilities
+            for pos, l2aT in ennumerate(syn1):
+                # Skip out-of-vocabulary words
+                if l2aT is None: continue
+                # If it isn't out-of vocab, we can count it
+                ++N
+                # Calculate the start of the slice containing the
+                # neighbor words with non-zero probability
+                start = max(0, pos - model.window)
+
+                # Initialize the sum used to renormalize the offset
+                # probabilities to account for out-of-vocabulary
+                sum_offset_probs = 0
+                sum_all_offsets = 0
+                this_window_had_oov = False
+                for pos2, l1 in ennumerate(syn0[start : pos + model.window],
+                                           start):
+                    # Skip oov and the anchor word (w_i)
+                    if l1 is None or pos2 == pos:
+                        this_window_had_oov = True
+                        continue
+                    # get the probability of this offset
+                    p_offset = P_o[pos2 - pos + model.window]
+                    sum_offset_probs += p_offset
+                    # calculate the probability of this word pair
+                    p_pair = 1.0/ (1.0 + exp(-dot(l1, l2aT)))
+                    # add the prob of this pair at this offset to the sum
+                    sum_all_offsets += p_pair * p_offset
+                # Rescale to account for out-of-vocabulary offsets. I
+                # don't always rescale because the sum won't be
+                # exactly 1 when there are no oov words due to
+                # floating point summation
+                if this_window_had_oov:
+                    sum_all_offsets /= sum_offset_probs
+
+                # Add calculated value to the final perplexity
+                perplexity_exponent += sum_all_offsets
+        # Now that we know N, we can divide by it to get the final
+        # per-word exponent
+        if N > 0:
+            perplexity_exponent /= N
+
+        return perplexity_exponent
 
     def __str__(self):
         return "Word2Vec(vocab=%s, size=%s, alpha=%s)" % (len(self.index2word), self.layer1_size, self.alpha)
