@@ -471,74 +471,9 @@ class Word2Vec(utils.SaveLoad):
             self.syn0norm = vstack(matutils.unitvec(vec) for vec in self.syn0).astype(REAL)
 
 
-    def accuracy(self, questions, restrict_vocab=30000):
-        """
-        Compute accuracy of the model. `questions` is a filename where lines are
-        4-tuples of words, split into sections by ": SECTION NAME" lines.
-        See https://code.google.com/p/word2vec/source/browse/trunk/questions-words.txt for an example.
-
-        The accuracy is reported (=printed to log and returned as a list) for each
-        section separately, plus there's one aggregate summary at the end.
-
-        Use `restrict_vocab` to ignore all questions containing a word whose frequency
-        is not in the top-N most frequent words (default top 30,000).
-
-        This method corresponds to the `compute-accuracy` script of the original C word2vec.
-
-        """
-        ok_vocab = dict(sorted(self.vocab.iteritems(), key=lambda item: -item[1].count)[:restrict_vocab])
-        ok_index = set(v.index for v in ok_vocab.itervalues())
-
-        def log_accuracy(section):
-            correct, incorrect = section['correct'], section['incorrect']
-            if correct + incorrect > 0:
-                logger.info("%s: %.1f%% (%i/%i)" %
-                    (section['section'], 100.0 * correct / (correct + incorrect),
-                    correct, correct + incorrect))
-
-        sections, section = [], None
-        for line_no, line in enumerate(open(questions)):
-            # TODO: use level3 BLAS (=evaluate multiple questions at once), for speed
-            if line.startswith(': '):
-                # a new section starts => store the old section
-                if section:
-                    sections.append(section)
-                    log_accuracy(section)
-                section = {'section': line.lstrip(': ').strip(), 'correct': 0, 'incorrect': 0}
-            else:
-                if not section:
-                    raise ValueError("missing section header before line #%i in %s" % (line_no, questions))
-                try:
-                    a, b, c, expected = [word.lower() for word in line.split()]  # TODO assumes vocabulary preprocessing uses lowercase, too...
-                except:
-                    logger.info("skipping invalid line #%i in %s" % (line_no, questions))
-                if a not in ok_vocab or b not in ok_vocab or c not in ok_vocab or expected not in ok_vocab:
-                    logger.debug("skipping line #%i with OOV words: %s" % (line_no, line))
-                    continue
-
-                ignore = set(self.vocab[v].index for v in [a, b, c])  # indexes of words to ignore
-                predicted = None
-                # find the most likely prediction, ignoring OOV words and input words
-                for index in argsort(self.most_similar(positive=[b, c], negative=[a], topn=False))[::-1]:
-                    if index in ok_index and index not in ignore:
-                        predicted = self.index2word[index]
-                        if predicted != expected:
-                            logger.debug("%s: expected %s, predicted %s" % (line.strip(), expected, predicted))
-                        break
-                section['correct' if predicted == expected else 'incorrect'] += 1
-        if section:
-            # store the last section, too
-            sections.append(section)
-            log_accuracy(section)
-
-        total = {'section': 'total', 'correct': sum(s['correct'] for s in sections), 'incorrect': sum(s['incorrect'] for s in sections)}
-        log_accuracy(total)
-        sections.append(total)
-        return sections
 
     def log2_perplexity(self, sentences):
-        """
-        Return the per-word perplexity of the model on a given corpus of sentences. Words not in the vocabulary are ignored.
+        """Return the per-word perplexity of the model on a given corpus of sentences. Words not in the vocabulary are ignored.
 
         *Note*: the following goes into excruciating detail because it
         is possible that future users may find errors in the code or
@@ -557,7 +492,7 @@ class Word2Vec(utils.SaveLoad):
            the set {-w..-1, 1..w})
 
         3. Let j = i+o
-        
+
         4. Select the pair word_i, word_j
 
         Training then chooses vector pairs for the words so that
@@ -704,6 +639,71 @@ class Word2Vec(utils.SaveLoad):
             perplexity_exponent /= N
 
         return perplexity_exponent
+
+    def accuracy(self, questions, restrict_vocab=30000):
+        """
+        Compute accuracy of the model. `questions` is a filename where lines are
+        4-tuples of words, split into sections by ": SECTION NAME" lines.
+        See https://code.google.com/p/word2vec/source/browse/trunk/questions-words.txt for an example.
+
+        The accuracy is reported (=printed to log and returned as a list) for each
+        section separately, plus there's one aggregate summary at the end.
+
+        Use `restrict_vocab` to ignore all questions containing a word whose frequency
+        is not in the top-N most frequent words (default top 30,000).
+
+        This method corresponds to the `compute-accuracy` script of the original C word2vec.
+
+        """
+        ok_vocab = dict(sorted(self.vocab.iteritems(), key=lambda item: -item[1].count)[:restrict_vocab])
+        ok_index = set(v.index for v in ok_vocab.itervalues())
+
+        def log_accuracy(section):
+            correct, incorrect = section['correct'], section['incorrect']
+            if correct + incorrect > 0:
+                logger.info("%s: %.1f%% (%i/%i)" %
+                    (section['section'], 100.0 * correct / (correct + incorrect),
+                    correct, correct + incorrect))
+
+        sections, section = [], None
+        for line_no, line in enumerate(open(questions)):
+            # TODO: use level3 BLAS (=evaluate multiple questions at once), for speed
+            if line.startswith(': '):
+                # a new section starts => store the old section
+                if section:
+                    sections.append(section)
+                    log_accuracy(section)
+                section = {'section': line.lstrip(': ').strip(), 'correct': 0, 'incorrect': 0}
+            else:
+                if not section:
+                    raise ValueError("missing section header before line #%i in %s" % (line_no, questions))
+                try:
+                    a, b, c, expected = [word.lower() for word in line.split()]  # TODO assumes vocabulary preprocessing uses lowercase, too...
+                except:
+                    logger.info("skipping invalid line #%i in %s" % (line_no, questions))
+                if a not in ok_vocab or b not in ok_vocab or c not in ok_vocab or expected not in ok_vocab:
+                    logger.debug("skipping line #%i with OOV words: %s" % (line_no, line))
+                    continue
+
+                ignore = set(self.vocab[v].index for v in [a, b, c])  # indexes of words to ignore
+                predicted = None
+                # find the most likely prediction, ignoring OOV words and input words
+                for index in argsort(self.most_similar(positive=[b, c], negative=[a], topn=False))[::-1]:
+                    if index in ok_index and index not in ignore:
+                        predicted = self.index2word[index]
+                        if predicted != expected:
+                            logger.debug("%s: expected %s, predicted %s" % (line.strip(), expected, predicted))
+                        break
+                section['correct' if predicted == expected else 'incorrect'] += 1
+        if section:
+            # store the last section, too
+            sections.append(section)
+            log_accuracy(section)
+
+        total = {'section': 'total', 'correct': sum(s['correct'] for s in sections), 'incorrect': sum(s['incorrect'] for s in sections)}
+        log_accuracy(total)
+        sections.append(total)
+        return sections
 
     def __str__(self):
         return "Word2Vec(vocab=%s, size=%s, alpha=%s)" % (len(self.index2word), self.layer1_size, self.alpha)
