@@ -673,12 +673,13 @@ class Word2Vec(utils.SaveLoad):
                 # probabilities to account for out-of-vocabulary
                 sum_offset_probs = 0
                 sum_all_offsets = 0
-                this_window_had_oov = False
+                needs_renomalization = (pos - model.window < 0 or
+                                        pos + model.window >= length(sentence))
                 for pos2, l1 in ennumerate(syn0[start : pos + model.window],
                                            start):
                     # Skip oov and the anchor word (w_i)
                     if l1 is None or pos2 == pos:
-                        this_window_had_oov = True
+                        needs_renomalization = True
                         continue
                     # get the probability of this offset
                     p_offset = P_o[pos2 - pos + model.window]
@@ -687,11 +688,12 @@ class Word2Vec(utils.SaveLoad):
                     p_pair = 1.0/ (1.0 + exp(-dot(l1, l2aT)))
                     # add the prob of this pair at this offset to the sum
                     sum_all_offsets += p_pair * p_offset
-                # Rescale to account for out-of-vocabulary offsets. I
-                # don't always rescale because the sum won't be
-                # exactly 1 when there are no oov words due to
-                # floating point summation
-                if this_window_had_oov:
+                # Rescale to account for out-of-vocabulary offsets or
+                # where some offsets ended up outside of the
+                # sentence. I don't always rescale because the sum
+                # won't be exactly 1 when there are no oov words due
+                # to floating point summation
+                if needs_renomalization:
                     sum_all_offsets /= sum_offset_probs
 
                 # Add calculated value to the final perplexity
