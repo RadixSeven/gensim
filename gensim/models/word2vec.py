@@ -60,6 +60,7 @@ from Queue import Queue
 from numpy import zeros_like, empty, exp, dot, outer, random, dtype, get_include,\
     float32 as REAL, uint32, seterr, array, uint8, vstack, argsort, fromstring
 
+
 logger = logging.getLogger("gensim.models.word2vec")
 
 
@@ -572,11 +573,11 @@ class Word2Vec(utils.SaveLoad):
         (1/N) sum i=1..N(sum o=-c..-1,1..c S(o) P(w_(i+o)|w_i))
 
         """
+        import numpy
         # Precalculate the probabilities of each offset. P_o[i] is the
         # P(O=i-c | C=c). So P_o[0] is P(O=-c | C) and P_o[c] is P(O=0
-        # | C) (which will always be 0). I use numpy.float64 in the
-        # calculation to avoid divide by 0 errors.
-        P_o=[sum([numpy.float64(1.0)/(self.window*r)
+        # | C) (which will always be 0). 
+        P_o=[sum([1.0/(2*self.window*r) if r != 0 else 0
                   for r in range(abs(o), self.window+1)])
              for o in range(-self.window, self.window+1)]
         P_o[self.window]=0
@@ -595,32 +596,37 @@ class Word2Vec(utils.SaveLoad):
             # train_sentence) l2aT is the current word's matrix
             # transposed, ready for use in the dot product that
             # calculates the probabilities
-            for pos, l2aT in ennumerate(syn1):
+            for pos, l2aT in enumerate(syn1):
                 # Skip out-of-vocabulary words
                 if l2aT is None: continue
                 # If it isn't out-of vocab, we can count it
                 ++N
                 # Calculate the start of the slice containing the
                 # neighbor words with non-zero probability
-                start = max(0, pos - model.window)
+                start = max(0, pos - self.window)
 
                 # Initialize the sum used to renormalize the offset
                 # probabilities to account for out-of-vocabulary
                 sum_offset_probs = 0
                 sum_all_offsets = 0
-                needs_renomalization = (pos - model.window < 0 or
-                                        pos + model.window >= length(sentence))
-                for pos2, l1 in ennumerate(syn0[start : pos + model.window],
-                                           start):
+                needs_renomalization = (pos - self.window < 0 or
+                                        pos + self.window >= len(sentence))
+                for pos2, l1 in enumerate(syn0[start : pos + self.window],
+                                          start):
                     # Skip oov and the anchor word (w_i)
                     if l1 is None or pos2 == pos:
                         needs_renomalization = True
                         continue
                     # get the probability of this offset
-                    p_offset = P_o[pos2 - pos + model.window]
+                    p_offset = P_o[pos2 - pos + self.window]
                     sum_offset_probs += p_offset
-                    # calculate the probability of this word pair
-                    p_pair = 1.0/ (1.0 + exp(-dot(l1, l2aT)))
+                    # calculate the probability of this word pair. The
+                    # first result gives the probabilities of each
+                    # node down the line in the hierarchical
+                    # softmax. The product is the single probability
+                    # we're after
+                    p_pair = numpy.prod(1.0/(1.0 + exp(-dot(l1, l2aT))))
+                    
                     # add the prob of this pair at this offset to the sum
                     sum_all_offsets += p_pair * p_offset
                 # Rescale to account for out-of-vocabulary offsets or
@@ -628,7 +634,7 @@ class Word2Vec(utils.SaveLoad):
                 # sentence. I don't always rescale because the sum
                 # won't be exactly 1 when there are no oov words due
                 # to floating point summation
-                if needs_renomalization:
+                if needs_renomalization and sum_offset_probs != 0:
                     sum_all_offsets /= sum_offset_probs
 
                 # Add calculated value to the final perplexity
