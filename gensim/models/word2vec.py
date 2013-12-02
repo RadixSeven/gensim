@@ -544,7 +544,13 @@ class Word2Vec(utils.SaveLoad):
 
         So, we can calculate the exponent of the perplexity with:
 
-        sum i=1..N (1/N)(sum o=-c..-1,1..c sum r=|o|..c (1/(2rc) P(w_(i+o)|w_i))
+        -sum i=1..N (1/N)(sum o=-c..-1,1..c sum r=|o|..c (1/(2rc) log P(w_(i+o)|w_i))
+
+        where N is the number of words in the vocabulary. This
+        corresponds to the empirical probability of a pair is the
+        product of the prob of the first item in the pair (1/N) times
+        the prob of the second item given the first P(O | C)
+
 
         There is a slight extra complexity added by out-of-vocabulary
         words. If a word i is not in the vocabulary, we don't add it's
@@ -558,22 +564,23 @@ class Word2Vec(utils.SaveLoad):
         out-of-vocabulary words). This would be better anyway because
         it would save multiplications. This leaves:
 
-        (1/N) sum i=1..N(sum o=-c..-1,1..c sum r=|o|..c (1/(2rc) P(w_(i+o)|w_i))
+        -(1/N) sum i=1..N(sum o=-c..-1,1..c sum r=|o|..c (1/(2rc) log P(w_(i+o)|w_i))
 
-        Next, since P(w_(i+o) | w_i) does not depend on r, we can move
+        Next, since log P(w_(i+o) | w_i) does not depend on r, we can move
         it out of the sum over r
 
-        (1/N) sum i=1..N(sum o=-c..-1,1..c (P(w_(i+o)|w_i) sum r=|o|..c (1/(2rc)))
+        -(1/N) sum i=1..N(sum o=-c..-1,1..c (log P(w_(i+o)|w_i) sum r=|o|..c (1/(2rc)))
 
         Then, we can precalculate the sums over r for a each offset
         and window width. Since c is constant, we only need to
         calculate these for one value of c. Let S(o)=sum r=|o|..c
         1/(2rc) = P(O=o | C=c)
 
-        (1/N) sum i=1..N(sum o=-c..-1,1..c S(o) P(w_(i+o)|w_i))
+        -(1/N) sum i=1..N(sum o=-c..-1,1..c S(o) log P(w_(i+o)|w_i))
 
         """
         import numpy
+        import math
         # Precalculate the probabilities of each offset. P_o[i] is the
         # P(O=i-c | C=c). So P_o[0] is P(O=-c | C) and P_o[c] is P(O=0
         # | C) (which will always be 0). 
@@ -628,7 +635,7 @@ class Word2Vec(utils.SaveLoad):
                     p_pair = numpy.prod(1.0/(1.0 + exp(-dot(l1, l2aT))))
                     
                     # add the prob of this pair at this offset to the sum
-                    sum_all_offsets += p_pair * p_offset
+                    sum_all_offsets += p_offset * math.log(p_pair,2)
                 # Rescale to account for out-of-vocabulary offsets or
                 # where some offsets ended up outside of the
                 # sentence. I don't always rescale because the sum
@@ -639,12 +646,16 @@ class Word2Vec(utils.SaveLoad):
 
                 # Add calculated value to the final perplexity
                 perplexity_exponent += sum_all_offsets
-        # Now that we know N, we can divide by it to get the final
-        # per-word exponent
+        # Now that we know N we can divide to get the final per-word
+        # exponent. Note that we divide by N twice - first to get the
+        # perplexity exponent (because we moved 1/N outside the
+        # summation). Then we divide again to get the per-word
+        # perplexity
         if N > 0:
+            perplexity_exponent /= N 
             perplexity_exponent /= N
 
-        return perplexity_exponent
+        return -perplexity_exponent
 
     def accuracy(self, questions, restrict_vocab=30000):
         """
