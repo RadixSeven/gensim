@@ -178,7 +178,9 @@ class Word2Vec(utils.SaveLoad):
             min1, min2 = heapq.heappop(heap), heapq.heappop(heap)
             heapq.heappush(heap, Vocab(count=min1.count + min2.count, index=i + len(self.vocab), left=min1, right=min2))
 
-        # recurse over the tree, assigning a binary code to each vocabulary word
+        # recurse over the tree, assigning a binary code to each
+        # vocabulary word. My guess is that node.point will contain
+        # the list of indices of the parents of the node
         if heap:
             max_depth, stack = 0, [(heap[0], [], [])]
             while stack:
@@ -656,6 +658,83 @@ class Word2Vec(utils.SaveLoad):
             perplexity_exponent /= N
 
         return -perplexity_exponent
+
+    def log2_perplexity_stochastic(self, sentences, repeats_per_word):
+        """Calculates the same values as log2_perplexity but using a random approximation
+
+        Uses the random process described in the beginning of the
+        log2_perplexity doc string to directly calculate the
+        perplexity with one minor exception: it loops through all
+        first words rather than randomly choosing one. For each first
+        word, it randomly chooses the second `repeats_per_word` times
+        then (at the end) divides by the number of pairs then by the
+        number of words. This routine mainly exists as a test. It
+        should calculate approximately the same value as
+        log2_perplexity.
+        """
+        import numpy
+        import math
+        perplexity_exponent = 0
+        N = 0
+        num_pairs = 0
+        for sentence in sentences:
+            # Get the vectors for each word in the sentence
+            no_oov = [self.vocab.get(word, None) for word in sentence]
+            syn0 = [None if word is None else self.syn0[word.index]
+                    for word in no_oov]
+            syn1 = [None if word is None else self.syn1[word.point].T
+                    for word in no_oov]
+            codes = [None if word is None else word.code
+                    for word in no_oov]
+
+            # Go over each anchor word (the variable names are from
+            # train_sentence) l2aT is the current word's matrix
+            # transposed, ready for use in the dot product that
+            # calculates the probabilities
+            for pos, l2aT in enumerate(syn1):
+                # Skip out-of-vocabulary words
+                if l2aT is None: continue
+                # If it isn't out-of vocab, we can count it
+                ++N
+
+                # Get the word code so can figure out the probabilities
+                code = codes[pos]
+                for iternum in xrange(repeats_per_word):
+                    # Choose a random window centered on the anchor
+                    window_reduction = random.randint(self.window)
+                    start = max(0, pos - self.window + window_reduction)
+                    end = min(len(sentence)-1, 
+                              pos + self.window - window_reduction)
+
+                    # Choose a random item in that window
+                    pos2 = random.randint(start, end)
+                    l1 = syn0[pos2]
+
+                    # Skip oov and the anchor word (w_i)
+                    if l1 is None or pos2 == pos: continue
+
+                    # Calculate the probability of this pair
+                    ++num_pairs
+                    # p_node_1 is the probability of word2 given each
+                    # parent (in the huffman tree) of this node
+                    p_node_1 = 1.0/(1.0 + exp(-dot(l1, l2aT)))
+                    p_node_correct = code * (p_node_1)+(1-code)*(1-p_node_1)
+                    p_pair = numpy.prod(p_node_correct)
+                    import pdb; pdb.set_trace()
+                    # add the prob of this pair at this offset to the sum
+                    perplexity_exponent += math.log(p_pair,2)
+
+        # Multiply by the empirical probability of each pair
+        if num_pairs > 0:
+            perplexity_exponent /= num_pairs
+
+        # Change to bits per word 
+        if N > 0:
+            perplexity_exponent /= N
+
+        return -perplexity_exponent
+        
+
 
     def accuracy(self, questions, restrict_vocab=30000):
         """
